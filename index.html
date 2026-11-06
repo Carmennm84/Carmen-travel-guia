@@ -38,6 +38,8 @@ body{background:linear-gradient(#a9d6f5,var(--bg) 340px) no-repeat var(--bg)}
 .c1{width:130px;top:70px;left:6%}.c2{width:170px;top:130px;right:-20px}.c3{width:100px;top:34px;right:22%}
 .tb{display:flex;gap:8px;margin-top:12px}.tb button{margin-top:0}
 .spk{margin-top:10px;padding:10px;font-size:15px}
+.df{font:14px system-ui,sans-serif;color:var(--mu);margin:0 0 8px}
+#dbg{font:12px system-ui,sans-serif;color:var(--mu);margin:14px 0 0;word-break:break-word}
 footer{text-align:center;font:15px system-ui,sans-serif;color:var(--mu);margin-top:36px}
 </style>
 </head>
@@ -53,61 +55,170 @@ footer{text-align:center;font:15px system-ui,sans-serif;color:var(--mu);margin-t
 <option value="de">Deutsch</option><option value="pt">Português</option>
 <option value="ca">Català</option>
 </select>
+<label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="tr" style="width:auto"> Traducir los textos de otros idiomas</label>
+<label for="mail">Email (opcional): amplía el límite diario de traducción</label>
+<input id="mail" type="email" placeholder="tu@email.com" autocomplete="email">
 </div>
 <button id="go">Qué hay a mi alrededor</button>
 <button id="walk" class="sec">🚶 Modo paseo</button>
 <p id="place"></p>
 <div id="list"></div>
-<p id="src" class="hide">Fuente: Wikipedia (licencia CC BY-SA).</p>
+<p id="dbg"></p>
+<p id="src" class="hide">Fuente: Wikipedia (CC BY-SA) y Wikidata.</p>
 <footer>Carmen_travel.org</footer>
 </main>
 <script>
 var $=function(i){return document.getElementById(i)};
 var S=function(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}};
-var T={es:["Buscando tu ubicación…","Cerca de ti","Leer más","No hay artículos de Wikipedia cerca en este idioma.","m"],
-en:["Finding your location…","Near you","Read more","No Wikipedia articles nearby in this language.","m"],
-fr:["Recherche de votre position…","Près de vous","Lire la suite","Aucun article Wikipédia à proximité dans cette langue.","m"],
-it:["Ricerca della posizione…","Vicino a te","Leggi di più","Nessun articolo di Wikipedia vicino in questa lingua.","m"],
-de:["Standort wird gesucht…","In deiner Nähe","Weiterlesen","Keine Wikipedia-Artikel in der Nähe in dieser Sprache.","m"],
-pt:["A procurar a sua localização…","Perto de si","Ler mais","Não há artigos da Wikipédia por perto neste idioma.","m"],
-ca:["Buscant la teva ubicació…","A prop teu","Llegeix-ne més","No hi ha articles de la Viquipèdia a prop en aquest idioma.","m"]};
+var T={es:["Buscando tu ubicación…","Cerca de ti","Leer más","No hay artículos de Wikipedia cerca.","m"],
+en:["Finding your location…","Near you","Read more","No Wikipedia articles nearby.","m"],
+fr:["Recherche de votre position…","Près de vous","Lire la suite","Aucun article Wikipédia à proximité.","m"],
+it:["Ricerca della posizione…","Vicino a te","Leggi di più","Nessun articolo di Wikipedia vicino.","m"],
+de:["Standort wird gesucht…","In deiner Nähe","Weiterlesen","Keine Wikipedia-Artikel in der Nähe.","m"],
+pt:["A procurar a sua localização…","Perto de si","Ler mais","Não há artigos da Wikipédia por perto.","m"],
+ca:["Buscant la teva ubicació…","A prop teu","Llegeix-ne més","No hi ha articles de la Viquipèdia a prop.","m"]};
 var VL={es:"es-ES",en:"en-GB",fr:"fr-FR",it:"it-IT",de:"de-DE",pt:"pt-PT",ca:"ca-ES"},RES=[];
-function speak(items,keep){
+function speak(items,keep){ /* items: [{t:texto,l:idioma}] */
   if(!window.speechSynthesis) return;
-  if(!keep) speechSynthesis.cancel(); var lc=$("lang").value;
-  var v=(speechSynthesis.getVoices()||[]).filter(function(x){return x.lang.slice(0,2)===lc})[0];
-  items.forEach(function(t){var u=new SpeechSynthesisUtterance(t);u.lang=VL[lc];if(v)u.voice=v;speechSynthesis.speak(u)});
+  if(!keep) speechSynthesis.cancel();
+  items.forEach(function(it){var u=new SpeechSynthesisUtterance(it.t);u.lang=VL[it.l]||it.l;
+    var v=(speechSynthesis.getVoices()||[]).filter(function(x){return x.lang.slice(0,2)===it.l})[0];if(v)u.voice=v;speechSynthesis.speak(u)});
 }
 function stopSpeak(){if(window.speechSynthesis)speechSynthesis.cancel()}
 var nl=(navigator.language||"es").slice(0,2); $("lang").value=S("lang")||(T[nl]?nl:"es");
 $("lang").onchange=function(){S("lang",$("lang").value)};
+$("tr").checked=S("tr")!=="0";$("tr").onchange=function(){S("tr",$("tr").checked?"1":"0")};
+$("mail").value=S("mail")||"";$("mail").onchange=function(){S("mail",$("mail").value.trim())};
 function d(a,b,c,e){var r=Math.PI/180,x=(c-a)*r,y=(e-b)*r,h=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)*Math.sin(y/2);return Math.round(12742000*Math.asin(Math.sqrt(h)))}
 function getPos(){return new Promise(function(ok,no){if(!navigator.geolocation)return no({code:0});navigator.geolocation.getCurrentPosition(ok,no,{enableHighAccuracy:true,timeout:20000,maximumAge:15000})})}
-function wiki(lc,la,lo,rad){
-  var u="https://"+lc+".wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord="+la+"|"+lo+"&ggsradius="+rad+"&ggslimit=8&prop=extracts|coordinates&exintro=1&explaintext=1&exchars=500&exlimit=max&format=json&origin=*";
-  return fetch(u).then(function(r){return r.json()}).then(function(j){
-    var p=j.query?Object.keys(j.query.pages).map(function(k){return j.query.pages[k]}):[];
-    return p.map(function(x){var c=x.coordinates&&x.coordinates[0];x.dist=c?d(la,lo,c.lat,c.lon):99999;return x}).sort(function(a,b){return a.dist-b.dist});
-  });
+var VER="v7",DBG={};
+function showDbg(){var k=Object.keys(DBG).map(function(x){return x+": "+DBG[x]}).join(" · ");$("dbg").textContent=VER+(k?" · "+k:"")}
+function H(t){var h=0;for(var i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return h}
+function bl(t){return new TextEncoder().encode(t).length}
+function chunks(t){
+  var ss=t.match(/[^.!?]+[.!?]*\s*/g)||[t],parts=[],out=[],cur="";
+  ss.forEach(function(x){while(bl(x)>450){parts.push(x.slice(0,300));x=x.slice(300)}parts.push(x)});
+  parts.forEach(function(x){if(bl(cur+x)>450){if(cur)out.push(cur);cur=x}else cur+=x});
+  if(cur)out.push(cur);return out;
+}
+async function translate(text,from,to){
+  var ck="tr|"+from+to+H(text),c=S(ck);if(c)return c;
+  var res=[],mail=S("mail"),cs=chunks(text);
+  for(var i=0;i<cs.length;i++){
+    var u="https://api.mymemory.translated.net/get?q="+encodeURIComponent(cs[i])+"&langpair="+from+"|"+to+(/^\S+@\S+\.\S+$/.test(mail||"")?"&de="+encodeURIComponent(mail):"");
+    var j;try{j=await fetch(u).then(function(r){return r.json()})}catch(e){throw new Error("sin conexión con el traductor ("+(e&&e.message)+")")}
+    var tt=j&&j.responseData&&j.responseData.translatedText;
+    if(!tt||j.responseStatus!=200||/MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(tt))throw new Error("respuesta del traductor: "+JSON.stringify(j).slice(0,140));
+    res.push(tt);
+  }
+  var o=res.join(" ");S(ck,o);return o;
+}
+async function ensureTr(x,lc,force){
+  if(x.lang===lc||x.tr||(!force&&!$("tr").checked))return x;
+  try{x.tr=await translate(x.extract,x.lang,lc)}catch(e){x.trErr=1;x.trMsg=e.message;DBG["traducción"]=e.message;showDbg()}
+  return x;
+}
+function item(x,lc){
+  var a=[{t:x.title+".",l:x.lang}],h=[x.desc,x.facts].filter(Boolean).join(". ");
+  if(h)a.push({t:h+".",l:lc});
+  var tr=x.tr&&x.lang!==lc;
+  if(x.extract||tr)a.push({t:tr?x.tr:x.extract,l:tr?lc:x.lang});
+  return a;
+}
+function unlock(){try{var u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u)}catch(e){}}
+var NM={es:"Español",en:"English",fr:"Français",it:"Italiano",de:"Deutsch",pt:"Português",ca:"Català"};
+var CTRY={it:"it",es:"es",fr:"fr",de:"de",at:"de",ch:"de",pt:"pt",ad:"ca"},ctryC={};
+function api(L,q){return fetch("https://"+L+".wikipedia.org/w/api.php?format=json&origin=*&"+q).then(function(r){return r.json()})}
+function pagesOf(j){return j.query?Object.keys(j.query.pages).map(function(k){return j.query.pages[k]}):[]}
+function geo(L,lc,la,lo,rad){
+  var prop="extracts|coordinates|pageprops"+(L!==lc?"|langlinks&lllang="+lc+"&lllimit=max":"");
+  return api(L,"action=query&generator=geosearch&ggscoord="+la+"|"+lo+"&ggsradius="+rad+"&ggslimit=8&prop="+prop+"&ppprop=wikibase_item&exintro=1&explaintext=1&exchars=500&exlimit=max").then(function(j){
+    return pagesOf(j).map(function(x){var c=x.coordinates&&x.coordinates[0],ll=x.langlinks&&x.langlinks[0];
+      return{pageid:x.pageid,title:x.title,extract:x.extract||"",lang:L,qid:x.pageprops&&x.pageprops.wikibase_item,dist:c?d(la,lo,c.lat,c.lon):99999,link:ll?ll["*"]:null}});
+  }).catch(function(e){DBG[L]="error: "+(e&&e.message||e);return[]});
+}
+async function localLang(la,lo){
+  var k=la.toFixed(1)+","+lo.toFixed(1); if(k in ctryC) return ctryC[k];
+  try{var j=await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=3&lat="+la+"&lon="+lo).then(function(r){return r.json()});
+    ctryC[k]=CTRY[(j.address&&j.address.country_code)||""]||null;DBG.país=(j.address&&j.address.country_code)||"?"}catch(e){ctryC[k]=null;DBG.país="error"}
+  return ctryC[k];
+}
+var FL={es:["Año","Arquitecto","Estilo"],en:["Year","Architect","Style"],fr:["Année","Architecte","Style"],it:["Anno","Architetto","Stile"],de:["Jahr","Architekt","Stil"],pt:["Ano","Arquiteto","Estilo"],ca:["Any","Arquitecte","Estil"]};
+function wd(q){return fetch("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*&"+q).then(function(r){return r.json()})}
+function wdFirst(cl,p){var a=cl[p];return a&&a[0]&&a[0].mainsnak&&a[0].mainsnak.datavalue?a[0].mainsnak.datavalue.value:null}
+async function enrich(items,lc){
+  var ids=[];items.forEach(function(x){if(x.qid&&ids.indexOf(x.qid)<0)ids.push(x.qid)});
+  if(!ids.length)return;
+  try{
+    var E=(await wd("props=descriptions|claims&languages="+lc+"&ids="+ids.join("|"))).entities||{},refs={};
+    items.forEach(function(x){var e=E[x.qid];if(!e)return;
+      x.desc=e.descriptions&&e.descriptions[lc]?e.descriptions[lc].value:"";
+      var cl=e.claims||{},t=wdFirst(cl,"P571");
+      if(t&&t.time){var m=t.time.match(/^([+-])(\d+)-/);
+        if(m){var y=(m[1]==="-"?-1:1)*parseInt(m[2],10);x.year=t.precision>=9?String(y):t.precision===7?"s. "+Math.ceil(Math.abs(y)/100):""}}
+      var ar=wdFirst(cl,"P84"),st=wdFirst(cl,"P149");
+      if(ar&&ar.id){x.arId=ar.id;refs[ar.id]=1}
+      if(st&&st.id){x.stId=st.id;refs[st.id]=1}
+    });
+    var rid=Object.keys(refs),L={};
+    if(rid.length)L=(await wd("props=labels&languages="+lc+"&ids="+rid.join("|"))).entities||{};
+    function lab(id){var e=L[id];return e&&e.labels&&e.labels[lc]?e.labels[lc].value:""}
+    var F=FL[lc];
+    DBG.wikidata="ok";
+    items.forEach(function(x){var f=[];
+      if(x.year)f.push(F[0]+": "+x.year);
+      if(x.arId&&lab(x.arId))f.push(F[1]+": "+lab(x.arId));
+      if(x.stId&&lab(x.stId))f.push(F[2]+": "+lab(x.stId));
+      x.facts=f.join(". ")});
+  }catch(e){DBG.wikidata="error: "+(e&&e.message||e)}
+}
+async function wiki(lc,la,lo,rad){
+  DBG={};var langs=[lc], loc=await localLang(la,lo);
+  if(loc&&langs.indexOf(loc)<0) langs.push(loc);
+  if(langs.indexOf("en")<0) langs.push("en");
+  var all=(await Promise.all(langs.map(function(L){return geo(L,lc,la,lo,rad)}))).reduce(function(a,b){return a.concat(b)},[]);
+  langs.forEach(function(L){if(!/^error/.test(DBG[L]||""))DBG[L]=all.filter(function(x){return x.lang===L}).length});
+  var by={},out=[];
+  all.forEach(function(x){var k=x.qid||(x.lang+x.pageid),cur=by[k];
+    if(!cur){by[k]=x;out.push(x)} else if(!cur.link&&x.link){cur.link=x.link}});
+  var need=out.filter(function(x){return x.lang!==lc&&x.link});
+  if(need.length){try{
+    var j=await api(lc,"action=query&prop=extracts&exintro=1&explaintext=1&exchars=500&exlimit=max&redirects=1&titles="+encodeURIComponent(need.map(function(x){return x.link}).join("|")));
+    var pg=pagesOf(j);
+    need.forEach(function(x){var m=pg.filter(function(y){return y.title===x.link})[0];
+      if(m&&m.extract){x.title=m.title;x.extract=m.extract;x.pageid=m.pageid;x.lang=lc}});
+  }catch(e){}}
+  await enrich(out,lc);
+  return out.sort(function(a,b){return a.dist-b.dist});
 }
 var RAD=100;
 function renderList(r,lc,t){
-  $("list").innerHTML="";
+  $("list").innerHTML="";showDbg();
     if(!r.length){var c0=document.createElement("div");c0.className="card";c0.textContent=t[3]+" (≤ "+RAD+" m)";
       if(RAD<500){var b=document.createElement("button");b.className="sec";b.textContent="Buscar hasta 500 m";b.onclick=function(){RAD=500;run()};c0.appendChild(b)}
       $("list").appendChild(c0);}
     RES=r;
     if(r.length){var tb=document.createElement("div");tb.className="tb";
-      var b1=document.createElement("button");b1.textContent="🔊 Escuchar todo";b1.onclick=function(){speak(RES.map(function(x){return x.title+". "+(x.extract||"")}))};
+      var b1=document.createElement("button");b1.textContent="🔊 Escuchar todo";b1.onclick=async function(){unlock();b1.disabled=true;for(var i=0;i<RES.length;i++)await ensureTr(RES[i],lc);b1.disabled=false;if(RES.some(function(x){return x.trErr}))$("place").textContent="No se pudo traducir algún texto (¿límite diario?). Lo leo en su idioma original.";speak([].concat.apply([],RES.map(function(x){return item(x,lc)})))};
       var b2=document.createElement("button");b2.className="sec";b2.textContent="⏹ Parar";b2.onclick=stopSpeak;
       tb.appendChild(b1);tb.appendChild(b2);$("list").appendChild(tb)}
     r.forEach(function(x){
       var c=document.createElement("div");c.className="card";
-      var h=document.createElement("h2");h.textContent=x.title+" · "+x.dist+" "+t[4];
+      var h=document.createElement("h2");h.textContent=x.title+" · "+x.dist+" "+t[4]+(x.lang!==lc?" · "+NM[x.lang]:"");
       var e=document.createElement("div");e.textContent=x.extract||"";e.style.whiteSpace="pre-wrap";
-      var a=document.createElement("a");a.href="https://"+lc+".wikipedia.org/?curid="+x.pageid;a.target="_blank";a.rel="noopener";a.textContent=t[2];
-      var sp=document.createElement("button");sp.className="sec spk";sp.textContent="🔊 Escuchar";sp.onclick=function(){speak([x.title+". "+(x.extract||"")])};
-      c.appendChild(h);c.appendChild(e);c.appendChild(sp);c.appendChild(a);$("list").appendChild(c);
+      var a=document.createElement("a");a.href="https://"+x.lang+".wikipedia.org/?curid="+x.pageid;a.target="_blank";a.rel="noopener";a.textContent=t[2];
+      var sp=document.createElement("button");sp.className="sec spk";sp.textContent="🔊 Escuchar";sp.onclick=async function(){unlock();sp.disabled=true;await ensureTr(x,lc);sp.disabled=false;if(x.trErr)$("place").textContent="No se pudo traducir (¿límite diario?). Lo leo en su idioma original.";speak(item(x,lc))};
+      c.appendChild(h);
+      var dtxt=[x.desc,x.facts].filter(Boolean).join(" · ");
+      if(dtxt){var df=document.createElement("div");df.className="df";df.textContent=dtxt;c.appendChild(df)}
+      c.appendChild(e);c.appendChild(sp);
+      if(x.lang!==lc){var tb2=document.createElement("button");tb2.className="sec spk";tb2.textContent="🌐 Traducir";var sh=false;
+        tb2.onclick=async function(){
+          if(sh){e.textContent=x.extract;tb2.textContent="🌐 Traducir";sh=false;return}
+          tb2.disabled=true;await ensureTr(x,lc,true);tb2.disabled=false;
+          if(x.tr){e.textContent=x.tr;tb2.textContent="Ver original";sh=true}else{tb2.textContent="No se pudo traducir (detalles abajo)"}};
+        c.appendChild(tb2)}
+      c.appendChild(a);$("list").appendChild(c);
     });
 }
 async function run(){
@@ -120,7 +231,7 @@ async function run(){
     renderList(r,lc,t);
     $("src").classList.remove("hide");
   }catch(e){
-    $("place").textContent=e&&e.code===1?"Safari no tiene permiso para tu ubicación. Ve a Ajustes del iPhone → Privacidad → Localización → Safari y actívala.":"No se pudo obtener la ubicación. Comprueba el GPS e inténtalo de nuevo.";
+    $("place").textContent=e&&e.code===1?"Safari no tiene permiso para tu ubicación. Ve a Ajustes del iPhone → Privacidad → Localización → Safari y actívala.":(e&&typeof e.code==="number")?"No se pudo obtener la ubicación. Comprueba el GPS e inténtalo de nuevo.":"Error al buscar lugares: "+(e&&e.message||e);
   }
   $("go").disabled=false;
 }
@@ -143,14 +254,14 @@ function walkStep(p){
     lastP={la:la,lo:lo};
     renderList(r,lc,t);$("src").classList.remove("hide");
     var n=r.filter(function(x){return!spoken[lc+x.pageid]})[0];
-    if(n){spoken[lc+n.pageid]=1;speak([n.title+". "+(n.extract||"")],true)}
+    if(n){spoken[lc+n.pageid]=1;ensureTr(n,lc).then(function(){speak(item(n,lc),true)})}
   }).catch(function(){}).then(function(){fetching=false});
 }
 $("walk").onclick=function(){
   if(walking!==null){stopWalk();return}
   if(!navigator.geolocation){$("place").textContent="Este navegador no permite acceder a la ubicación.";return}
   RAD=100;lastP=null;spoken={};stopSpeak();
-  speak([WT[$("lang").value]]);keepAwake();
+  speak([{t:WT[$("lang").value],l:$("lang").value}]);keepAwake();
   walking=navigator.geolocation.watchPosition(walkStep,function(e){
     $("place").textContent=e&&e.code===1?"Safari no tiene permiso para tu ubicación. Ve a Ajustes del iPhone → Privacidad → Localización → Safari y actívala.":"No se pudo obtener la ubicación. Comprueba el GPS.";
     if(e&&e.code===1)stopWalk();
